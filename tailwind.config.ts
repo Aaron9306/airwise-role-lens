@@ -22,6 +22,7 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          glow: "hsl(var(--primary-glow))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -57,6 +58,23 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        aqi: {
+          good: "hsl(var(--aqi-good))",
+          moderate: "hsl(var(--aqi-moderate))",
+          sensitive: "hsl(var(--aqi-sensitive))",
+          unhealthy: "hsl(var(--aqi-unhealthy))",
+          "very-unhealthy": "hsl(var(--aqi-very-unhealthy))",
+          hazardous: "hsl(var(--aqi-hazardous))",
+        },
+      },
+      backgroundImage: {
+        "gradient-sky": "var(--gradient-sky)",
+        "gradient-atmosphere": "var(--gradient-atmosphere)",
+        "gradient-data": "var(--gradient-data)",
+      },
+      boxShadow: {
+        glow: "var(--shadow-glow)",
+        card: "var(--shadow-card)",
       },
       borderRadius: {
         lg: "var(--radius)",
