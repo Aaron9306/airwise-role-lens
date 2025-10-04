@@ -11,6 +11,26 @@ interface Profile {
   role: string;
   health_conditions: string[];
   location_name: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+}
+
+interface AirQualityData {
+  aqi: number;
+  pm25: number | null;
+  pm10: number | null;
+  no2: number | null;
+  o3: number | null;
+  location: string;
+  source: string;
+}
+
+interface WeatherData {
+  temperature: number;
+  humidity: number;
+  windSpeed: number;
+  description: string;
+  location: string;
 }
 
 const Dashboard = () => {
@@ -20,6 +40,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [recommendations, setRecommendations] = useState<string>("");
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [airQuality, setAirQuality] = useState<AirQualityData | null>(null);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [loadingData, setLoadingData] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -43,8 +66,29 @@ const Dashboard = () => {
       if (error) throw error;
       setProfile(data);
       
-      // Fetch AI recommendations
-      fetchRecommendations(data);
+      // Fetch real-time data if location is available
+      if (data.location_lat && data.location_lng) {
+        fetchRealTimeData(data);
+      } else {
+        // Use default values if no location
+        setAirQuality({
+          aqi: 75,
+          pm25: 15,
+          pm10: 25,
+          no2: 20,
+          o3: 50,
+          location: 'Default Location',
+          source: 'default'
+        });
+        setWeather({
+          temperature: 22,
+          humidity: 65,
+          windSpeed: 3.5,
+          description: 'clear sky',
+          location: 'Default Location'
+        });
+        fetchRecommendations(data, 75, 22, 65);
+      }
     } catch (error: any) {
       toast({
         title: "Error loading profile",
@@ -56,7 +100,53 @@ const Dashboard = () => {
     }
   };
 
-  const fetchRecommendations = async (profileData: Profile) => {
+  const fetchRealTimeData = async (profileData: Profile) => {
+    setLoadingData(true);
+    try {
+      const lat = profileData.location_lat || 32.7767; // Default to Dallas
+      const lng = profileData.location_lng || -96.7970;
+
+      // Fetch air quality and weather in parallel
+      const [aqResponse, weatherResponse] = await Promise.all([
+        supabase.functions.invoke('fetch-air-quality', {
+          body: { lat, lng }
+        }),
+        supabase.functions.invoke('fetch-weather', {
+          body: { lat, lng }
+        })
+      ]);
+
+      if (aqResponse.error) throw aqResponse.error;
+      if (weatherResponse.error) throw weatherResponse.error;
+
+      setAirQuality(aqResponse.data);
+      setWeather(weatherResponse.data);
+
+      // Fetch AI recommendations with real data
+      fetchRecommendations(
+        profileData,
+        aqResponse.data.aqi,
+        weatherResponse.data.temperature,
+        weatherResponse.data.humidity
+      );
+    } catch (error: any) {
+      console.error('Error fetching real-time data:', error);
+      toast({
+        title: "Could not load real-time data",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  const fetchRecommendations = async (
+    profileData: Profile,
+    aqi: number,
+    temperature: number,
+    humidity: number
+  ) => {
     setLoadingRecommendations(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-recommendations', {
@@ -64,9 +154,9 @@ const Dashboard = () => {
           role: profileData.role,
           health_conditions: profileData.health_conditions || [],
           location_name: profileData.location_name,
-          aqi: 75, // Example AQI - will be replaced with real data
-          temperature: 22,
-          humidity: 65
+          aqi,
+          temperature,
+          humidity
         }
       });
 
@@ -145,10 +235,61 @@ const Dashboard = () => {
               <CardDescription>Real-time AQI from NASA TEMPO & OpenAQ</CardDescription>
             </CardHeader>
             <CardContent>
-              <AQIIndicator value={75} />
-              <p className="text-sm text-muted-foreground mt-4 text-center">
-                Live data integration coming soon. Example AQI: 75 (Moderate)
-              </p>
+              {loadingData ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : airQuality ? (
+                <>
+                  <AQIIndicator value={airQuality.aqi} />
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    {airQuality.pm25 && (
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <p className="text-muted-foreground">PM2.5</p>
+                        <p className="font-semibold">{airQuality.pm25.toFixed(1)} µg/m³</p>
+                      </div>
+                    )}
+                    {airQuality.pm10 && (
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <p className="text-muted-foreground">PM10</p>
+                        <p className="font-semibold">{airQuality.pm10.toFixed(1)} µg/m³</p>
+                      </div>
+                    )}
+                    {airQuality.no2 && (
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <p className="text-muted-foreground">NO₂</p>
+                        <p className="font-semibold">{airQuality.no2.toFixed(1)} ppb</p>
+                      </div>
+                    )}
+                    {airQuality.o3 && (
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <p className="text-muted-foreground">O₃</p>
+                        <p className="font-semibold">{airQuality.o3.toFixed(1)} ppb</p>
+                      </div>
+                    )}
+                  </div>
+                  {weather && (
+                    <div className="mt-4 p-3 rounded-lg bg-gradient-subtle border border-border/50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Temperature</p>
+                          <p className="text-2xl font-bold">{weather.temperature}°C</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">Humidity</p>
+                          <p className="text-lg font-semibold">{weather.humidity}%</p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-2 capitalize">{weather.description}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-4 text-center">
+                    Data from {airQuality.source} • Updated in real-time
+                  </p>
+                </>
+              ) : (
+                <AQIIndicator value={75} />
+              )}
             </CardContent>
           </Card>
 

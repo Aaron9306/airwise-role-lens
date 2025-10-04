@@ -2,3 +2,9 @@ project_id = "iegnqgduopapxzoaqnrz"
 
 [functions.generate-recommendations]
 verify_jwt = false
+
+[functions.fetch-air-quality]
+verify_jwt = false
+
+[functions.fetch-weather]
+verify_jwt = false
