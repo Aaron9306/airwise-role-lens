@@ -18,6 +18,8 @@ const Dashboard = () => {
   const { toast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState<string>("");
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -40,6 +42,9 @@ const Dashboard = () => {
 
       if (error) throw error;
       setProfile(data);
+      
+      // Fetch AI recommendations
+      fetchRecommendations(data);
     } catch (error: any) {
       toast({
         title: "Error loading profile",
@@ -48,6 +53,34 @@ const Dashboard = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRecommendations = async (profileData: Profile) => {
+    setLoadingRecommendations(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-recommendations', {
+        body: {
+          role: profileData.role,
+          health_conditions: profileData.health_conditions || [],
+          location_name: profileData.location_name,
+          aqi: 75, // Example AQI - will be replaced with real data
+          temperature: 22,
+          humidity: 65
+        }
+      });
+
+      if (error) throw error;
+      setRecommendations(data.recommendations);
+    } catch (error: any) {
+      console.error('Error fetching recommendations:', error);
+      toast({
+        title: "Could not load recommendations",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingRecommendations(false);
     }
   };
 
@@ -125,14 +158,23 @@ const Dashboard = () => {
               <CardDescription>Based on your role and health profile</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="p-4 rounded-lg bg-muted/50">
-                <p className="text-sm font-medium">Current conditions are moderate</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Outdoor activities are generally safe. Sensitive individuals should consider reducing prolonged outdoor exertion.
-                </p>
-              </div>
+              {loadingRecommendations ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : recommendations ? (
+                <div className="p-4 rounded-lg bg-gradient-subtle border border-border/50">
+                  <p className="text-sm whitespace-pre-line leading-relaxed">{recommendations}</p>
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground">
+                    AI recommendations will appear here based on your profile and current air quality.
+                  </p>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
-                AI-powered personalized recommendations will be available soon.
+                Powered by Lovable AI • Updates based on real-time conditions
               </p>
             </CardContent>
           </Card>
