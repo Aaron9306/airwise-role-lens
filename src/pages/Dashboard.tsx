@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Wind, LogOut, MapPin, Activity } from "lucide-react";
 import AQIIndicator from "@/components/AQIIndicator";
+import ForecastChart from "@/components/ForecastChart";
 
 interface Profile {
   role: string;
@@ -33,6 +34,16 @@ interface WeatherData {
   location: string;
 }
 
+interface ForecastPoint {
+  time: number;
+  hour: string;
+  aqi: number;
+  temperature: number;
+  windSpeed: string;
+  humidity: number;
+  description: string;
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -43,6 +54,8 @@ const Dashboard = () => {
   const [airQuality, setAirQuality] = useState<AirQualityData | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [forecast, setForecast] = useState<ForecastPoint[]>([]);
+  const [loadingForecast, setLoadingForecast] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -122,6 +135,9 @@ const Dashboard = () => {
       setAirQuality(aqResponse.data);
       setWeather(weatherResponse.data);
 
+      // Fetch forecast with current AQI
+      fetchForecast(lat, lng, aqResponse.data.aqi);
+
       // Fetch AI recommendations with real data
       fetchRecommendations(
         profileData,
@@ -138,6 +154,27 @@ const Dashboard = () => {
       });
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const fetchForecast = async (lat: number, lng: number, currentAqi: number) => {
+    setLoadingForecast(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-forecast', {
+        body: { lat, lng, currentAqi }
+      });
+
+      if (error) throw error;
+      setForecast(data.forecast);
+    } catch (error: any) {
+      console.error('Error fetching forecast:', error);
+      toast({
+        title: "Could not load forecast",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingForecast(false);
     }
   };
 
@@ -320,6 +357,9 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Forecast Chart */}
+        <ForecastChart forecast={forecast} loading={loadingForecast} />
 
         {/* Map Placeholder */}
         <Card className="shadow-card">
